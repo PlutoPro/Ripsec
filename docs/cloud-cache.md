@@ -68,8 +68,8 @@ An entry expires 30 days after its credential does, so that an expired device ca
 ## Setting it up
 
 You need a Cloud Cache deployment with **TLS on its TCP API and persistence**, ideally three or more nodes.
-Its own guide, [`docs/ripsec.md`](https://github.com/PlutoPro/Cloud-Cache/blob/main/docs/ripsec.md), is the
-reference for that side.
+Its [README](https://github.com/PlutoPro/Cloud-Cache/blob/main/docs/README.md#persistence-and-clustering) covers
+running the cluster.
 
 ### 1. Certificates
 
