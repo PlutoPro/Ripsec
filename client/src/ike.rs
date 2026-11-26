@@ -12,6 +12,7 @@ use ripsec_proto::secured::{Keys, Reassembly, int_auth, reassemble};
 use ripsec_proto::wire::{self, Chain, HEADER_LEN, Header, Payload, be16, exchange, flag, notify, payload};
 use std::io;
 use std::net::{Ipv4Addr, UdpSocket};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 /// Precedes IKE messages on the NAT traversal port, where ESP shares the socket.
@@ -22,12 +23,16 @@ const ATTR_IP4_ADDRESS: u16 = 1;
 const ATTR_IP4_DNS: u16 = 3;
 /// Waits between retransmissions of a request.
 const RETRY: [u64; 5] = [1, 2, 3, 5, 8];
+/// How long we wait for the server to acknowledge that we are leaving.
+const GOODBYE: [u64; 1] = [1];
 
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
     /// No usable answer. Worth trying again later.
     NoResponse,
+    /// The caller asked us to stop.
+    Cancelled,
     /// The server refused us. Trying again will not help.
     Refused(String),
     /// The server sent something we cannot accept.
@@ -39,6 +44,7 @@ impl std::fmt::Display for Error {
         match self {
             Error::Io(e) => write!(f, "network error: {e}"),
             Error::NoResponse => write!(f, "no response from the server"),
+            Error::Cancelled => write!(f, "cancelled"),
             Error::Refused(why) => write!(f, "{why}"),
             Error::Protocol(why) => write!(f, "protocol error: {why}"),
         }
@@ -104,16 +110,22 @@ fn message(header: Header, chain: &Chain) -> Vec<u8> {
 fn exchange_with<T>(
     socket: &UdpSocket,
     packets: &[Vec<u8>],
+    waits: &[u64],
+    stop: &AtomicBool,
     mut accept: impl FnMut(&[u8]) -> Option<T>,
 ) -> Result<T, Error> {
     let mut buffer = vec![0u8; 65536];
-    for wait in RETRY {
+    for &wait in waits {
         for packet in packets {
             send(socket, packet)?;
         }
         let deadline = Instant::now() + Duration::from_secs(wait);
         while let Some(left) = deadline.checked_duration_since(Instant::now()) {
-            socket.set_read_timeout(Some(left.max(Duration::from_millis(1))))?;
+            if stop.load(Ordering::Relaxed) {
+                return Err(Error::Cancelled);
+            }
+            let slice = left.clamp(Duration::from_millis(1), Duration::from_millis(200));
+            socket.set_read_timeout(Some(slice))?;
             match socket.recv(&mut buffer) {
                 Ok(n) => {
                     if let Some(data) = buffer[..n].strip_prefix(&MARKER)
@@ -122,7 +134,7 @@ fn exchange_with<T>(
                         return Ok(answer);
                     }
                 }
-                Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => break,
+                Err(e) if matches!(e.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) => {}
                 // ICMP errors, which anyone could have forged. Keep waiting.
                 Err(_) => std::thread::sleep(Duration::from_millis(100)),
             }
@@ -195,11 +207,18 @@ impl Session {
         Header { spi_i: self.spi_i, spi_r: self.spi_r, next: 0, exchange, flags, msg_id }
     }
 
-    fn request(&mut self, socket: &UdpSocket, exchange: u8, chain: &Chain) -> Result<Answer, Error> {
+    fn request(
+        &mut self,
+        socket: &UdpSocket,
+        exchange: u8,
+        chain: &Chain,
+        waits: &[u64],
+        stop: &AtomicBool,
+    ) -> Result<Answer, Error> {
         let header = self.header(exchange, flag::INITIATOR, self.next_id);
         let packets = self.keys.seal(header, chain.first, &chain.bytes, self.frag_ok);
         let (keys, mut fragments) = (&self.keys, None);
-        let answer = exchange_with(socket, &packets, |data| {
+        let answer = exchange_with(socket, &packets, waits, stop, |data| {
             let h = Header::parse(data)?;
             let ours = h.spi_i == header.spi_i
                 && h.spi_r == header.spi_r
@@ -217,7 +236,11 @@ impl Session {
     }
 
     /// Runs the three exchanges. `socket` must be connected to the server.
-    pub fn connect(socket: &UdpSocket, profile: &Profile) -> Result<(Session, Child), Error> {
+    pub fn connect(
+        socket: &UdpSocket,
+        profile: &Profile,
+        stop: &AtomicBool,
+    ) -> Result<(Session, Child), Error> {
         let server = match socket.peer_addr()? {
             std::net::SocketAddr::V4(v4) => v4,
             _ => return Err(Error::Protocol("only IPv4 servers are supported")),
@@ -262,14 +285,15 @@ impl Session {
                 msg_id: 0,
             };
             let request = message(header, &chain);
-            let (response, h) = exchange_with(socket, std::slice::from_ref(&request), |data| {
-                let h = Header::parse(data)?;
-                let ours = h.spi_i == spi_i
-                    && h.msg_id == 0
-                    && h.exchange == exchange::SA_INIT
-                    && h.flags & flag::RESPONSE != 0;
-                ours.then(|| (data.to_vec(), h))
-            })?;
+            let (response, h) =
+                exchange_with(socket, std::slice::from_ref(&request), &RETRY, stop, |data| {
+                    let h = Header::parse(data)?;
+                    let ours = h.spi_i == spi_i
+                        && h.msg_id == 0
+                        && h.exchange == exchange::SA_INIT
+                        && h.flags & flag::RESPONSE != 0;
+                    ours.then(|| (data.to_vec(), h))
+                })?;
             let payloads = wire::parse_payloads(h.next, &response[HEADER_LEN..])
                 .map_err(|_| Error::Protocol("malformed IKE_SA_INIT response"))?;
             if let Some(n) = wire::notifies(&payloads).find(|n| n.kind == notify::COOKIE) {
@@ -333,7 +357,7 @@ impl Session {
         chain.push(payload::KE, &key_exchange(KE_ML_KEM_768, &kem.public));
         let sent_header = session.header(exchange::INTERMEDIATE, flag::INITIATOR, session.next_id);
         let ours = int_auth(prf, &session.keys.pi, sent_header, chain.first, &chain.bytes);
-        let answer = session.request(socket, exchange::INTERMEDIATE, &chain)?;
+        let answer = session.request(socket, exchange::INTERMEDIATE, &chain, &RETRY, stop)?;
         let theirs = int_auth(prf, &session.keys.pr, answer.header, answer.first, &answer.plain);
         let payloads = wire::parse_payloads(answer.first, &answer.plain)
             .map_err(|_| Error::Protocol("malformed IKE_INTERMEDIATE response"))?;
@@ -372,7 +396,7 @@ impl Session {
         chain.push(payload::SA, &proposal::offer_esp(spi_in));
         chain.push(payload::TSI, &net::encode_ts(&any));
         chain.push(payload::TSR, &net::encode_ts(&profile.routes));
-        let answer = session.request(socket, exchange::AUTH, &chain)?;
+        let answer = session.request(socket, exchange::AUTH, &chain, &RETRY, stop)?;
         let payloads = wire::parse_payloads(answer.first, &answer.plain)
             .map_err(|_| Error::Protocol("malformed IKE_AUTH response"))?;
 
@@ -485,7 +509,9 @@ impl Session {
     pub fn close(&mut self, socket: &UdpSocket) {
         let mut chain = Chain::default();
         chain.push(payload::DELETE, &[wire::PROTO_IKE, 0, 0, 0]);
-        if let Err(e) = self.request(socket, exchange::INFORMATIONAL, &chain) {
+        if let Err(e) =
+            self.request(socket, exchange::INFORMATIONAL, &chain, &GOODBYE, &AtomicBool::new(false))
+        {
             eprintln!("could not tell the server we left: {e}");
         }
     }

@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "resources": {
+      "bin/ripsec-service.exe": "ripsec-service.exe",
+      "bin/wintun.dll": "wintun.dll"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "installer.nsh"
+      }
+    }
+  }
+}

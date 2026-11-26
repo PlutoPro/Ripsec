@@ -1,3 +1,6 @@
 /target
 /deploy/.env
 /deploy/full/.env
+/app/target
+/app/gen
+/app/bin

@@ -22,7 +22,8 @@ const MAX_AGE: Duration = Duration::from_secs(8 * 3600);
 pub struct Options {
     /// Overrides the server named in the profile.
     pub server: Option<String>,
-    pub port: u16,
+    /// Overrides the profile's port. Without either, 4500.
+    pub port: Option<u16>,
     /// Overrides the networks routed through the tunnel. They must be within the profile's.
     pub routes: Vec<Cidr>,
 }
@@ -65,11 +66,16 @@ fn resolve(host: &str, port: u16) -> Result<SocketAddrV4, ike::Error> {
 
 impl Connected {
     /// Performs the handshake. No network settings are touched yet.
-    pub fn handshake(profile: &Profile, options: &Options) -> Result<Connected, ike::Error> {
-        let server = resolve(options.server.as_deref().unwrap_or(&profile.server), options.port)?;
+    pub fn handshake(
+        profile: &Profile,
+        options: &Options,
+        stop: &AtomicBool,
+    ) -> Result<Connected, ike::Error> {
+        let port = options.port.or(profile.port).unwrap_or(4500);
+        let server = resolve(options.server.as_deref().unwrap_or(&profile.server), port)?;
         let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
         socket.connect(server)?;
-        let (session, child) = Session::connect(&socket, profile)?;
+        let (session, child) = Session::connect(&socket, profile, stop)?;
         Ok(Connected { socket, session, child, server: *server.ip() })
     }
 
@@ -98,6 +104,12 @@ impl Connected {
         let receiver = esp::Receiver::new(self.child.spi_in, &self.child.key_in).ok_or("invalid keys")?;
         // A DNS server is only set if the tunnel actually leads to it.
         let everything = routes.iter().any(|r| r.prefix == 0);
+        // The server's own onward traffic would be routed straight back into the tunnel.
+        if everything && self.server.is_loopback() {
+            return Err("the server is on this computer, so not all traffic can go through it; \
+                        limit the routes"
+                .into());
+        }
         let dns = self.child.dns.iter().copied().filter(|d| everything || covers(&routes, *d)).collect();
         let tun = Tun::open(&tun::Settings {
             address: self.child.address,

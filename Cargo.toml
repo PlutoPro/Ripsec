@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/proto", "client"]
+exclude = ["app"]
 
 [package]
 name = "ripsec"

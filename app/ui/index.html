@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ripsec</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <section id="unavailable" class="notice" hidden>
+      <h1>Service not running</h1>
+      <p id="unavailable-reason"></p>
+      <p class="muted">Install Ripsec with its installer, or restart the “Ripsec VPN” service.</p>
+    </section>
+
+    <section id="welcome" hidden>
+      <h1>Add your profile</h1>
+      <ol>
+        <li>Sign in to your organisation’s Ripsec portal.</li>
+        <li>Add this computer as a device.</li>
+        <li>Click <strong>strongSwan config</strong> to download <code>ripsec.conf</code>.</li>
+      </ol>
+      <button class="primary choose">Choose ripsec.conf…</button>
+      <p class="muted">Windows will ask for permission once.</p>
+    </section>
+
+    <section id="home" hidden>
+      <button id="power" aria-describedby="state">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9"/><path d="M6.3 7a8 8 0 1 0 11.4 0"/></svg>
+        <span id="action">Connect</span>
+      </button>
+      <h1 id="state" role="status">Not connected</h1>
+      <p id="detail" class="muted"></p>
+      <dl>
+        <dt>Server</dt><dd id="server"></dd>
+        <dt>Through the VPN</dt><dd id="routes"></dd>
+        <dt class="live">Your address</dt><dd class="live" id="address"></dd>
+        <dt class="live">Connected for</dt><dd class="live" id="duration"></dd>
+        <dt class="live">Traffic</dt><dd class="live" id="traffic"></dd>
+      </dl>
+      <p id="ipv6" class="warning" hidden>IPv6 traffic is not protected: it goes outside the VPN.</p>
+      <p class="actions">
+        <button class="link choose">Replace profile…</button>
+        <button class="link" id="remove">Remove profile</button>
+      </p>
+    </section>
+
+    <section id="import" hidden>
+      <h1>Add this profile?</h1>
+      <p class="muted" id="file"></p>
+      <form id="settings">
+        <label>Server <input name="server" required spellcheck="false"></label>
+        <label>Port <input name="port" type="number" min="1" max="65535" required></label>
+        <label>Only send these networks through the VPN
+          <input name="routes" spellcheck="false" placeholder="Leave empty to use the profile">
+        </label>
+        <p class="muted">The profile allows <span id="allowed"></span>.</p>
+        <p class="muted">Only add a profile you got from your own organisation. Whoever runs this server can see your traffic.</p>
+        <button class="primary">Add profile</button>
+        <button type="button" class="link" id="cancel">Cancel</button>
+      </form>
+    </section>
+
+    <p id="error" class="error" role="alert" hidden></p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

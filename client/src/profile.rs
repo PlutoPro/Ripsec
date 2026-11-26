@@ -6,6 +6,8 @@ use ripsec_proto::net::Cidr;
 #[derive(Debug)]
 pub struct Profile {
     pub server: String,
+    /// The server's NAT traversal port, if it is not 4500.
+    pub port: Option<u16>,
     /// Our IKE identity.
     pub id: String,
     pub server_id: String,
@@ -18,7 +20,7 @@ impl Profile {
     pub fn parse(text: &str) -> Result<Profile, String> {
         let mut sections: Vec<&str> = Vec::new();
         let (mut server, mut id, mut server_id) = (None, None, None);
-        let (mut secret, mut routes, mut site) = (None, None, false);
+        let (mut secret, mut routes, mut site, mut port) = (None, None, false, None);
         for line in text.lines().map(str::trim) {
             if let Some(name) = line.strip_suffix('{') {
                 sections.push(name.trim());
@@ -28,6 +30,9 @@ impl Profile {
                 let value = value.trim().trim_matches('"').to_string();
                 match (sections.last().copied().unwrap_or(""), key.trim()) {
                     (_, "remote_addrs") => server = Some(value),
+                    (_, "remote_port") => {
+                        port = Some(value.parse().map_err(|_| "invalid remote_port".to_string())?);
+                    }
                     ("local", "id") => id = Some(value),
                     ("remote", "id") => server_id = Some(value),
                     (_, "secret") => secret = Some(value),
@@ -47,6 +52,7 @@ impl Profile {
             .collect::<Result<Vec<Cidr>, _>>()?;
         Ok(Profile {
             server: server.ok_or("profile has no remote_addrs")?,
+            port,
             id: id.ok_or("profile has no local id")?,
             server_id: server_id.ok_or("profile has no remote id")?,
             secret: secret.ok_or("profile has no secret")?,
@@ -100,6 +106,10 @@ secrets {
         assert_eq!((p.server.as_str(), p.id.as_str()), ("vpn.example.com", "abc@ripsec"));
         assert_eq!((p.server_id.as_str(), p.secret.as_str()), ("vpn.ripsec.test", "s3cr3t_-value"));
         assert_eq!(p.routes.len(), 2);
+        assert_eq!(p.port, None);
+        let with_port = DEVICE.replace("version = 2", "remote_port = 14500");
+        assert_eq!(Profile::parse(&with_port).unwrap().port, Some(14500));
+        assert!(Profile::parse(&DEVICE.replace("version = 2", "remote_port = x")).is_err());
         // Windows line endings are fine.
         assert!(Profile::parse(&DEVICE.replace('\n', "\r\n")).is_ok());
     }
