@@ -1,0 +1,30 @@
+# Used by this directory's compose.yaml only.
+listen = "auto"
+# Change to this machine's address so that other devices can connect.
+public_address = "127.0.0.1"
+server_id = "vpn.ripsec.test"
+pool = "10.99.0.0/24"
+dns = ["1.1.1.1"]
+local_subnets = ["0.0.0.0/0"]
+require_post_quantum = true
+
+[cloud_cache]
+address = "kv.ripsec.test:7379"
+ca_file = "/ca/ca.crt"
+token_url = "https://keycloak:8443/realms/kv/protocol/openid-connect/token"
+token_ca_file = "/ca/ca.crt"
+client_secret_file = "/secret/client-secret"
+organization_id = "5f0c1d52-7a1e-4b6f-9a40-2f7c1c9d3e11"
+refresh_seconds = 15
+
+[web]
+listen = "0.0.0.0:8480"
+public_url = "http://localhost:8480"
+# Keycloak is reached over plain HTTP inside the compose network.
+allow_insecure_http = true
+
+[oidc]
+issuer = "http://localhost:18081/realms/ripsec"
+discovery_url = "http://keycloak:8080/realms/ripsec/.well-known/openid-configuration"
+client_id = "ripsec-portal"
+user_role = "vpn-user"

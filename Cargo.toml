@@ -1,0 +1,35 @@
+[workspace]
+members = ["crates/proto", "client"]
+exclude = ["app"]
+
+[package]
+name = "ripsec"
+version = "0.1.0"
+edition = "2024"
+description = "Post-quantum IKEv2/IPsec VPN server with an OpenID Connect self-service portal"
+license = "MIT"
+
+[dependencies]
+ripsec-proto = { path = "crates/proto" }
+aws-lc-rs = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+base64 = "0.22"
+jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_rs"] }
+rustls = { version = "0.23.27", default-features = false, features = ["aws_lc_rs", "std"] }
+serde ={ version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "net", "rt", "signal", "sync", "time"] }
+toml = "0.9"
+ureq = { version = "3", features = ["json"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+ripsec-client = { path = "client" }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

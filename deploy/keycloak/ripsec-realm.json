@@ -1,0 +1,54 @@
+{
+  "realm": "ripsec",
+  "enabled": true,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [{ "name": "vpn-admin" }, { "name": "vpn-user" }]
+  },
+  "clients": [
+    {
+      "clientId": "ripsec-portal",
+      "name": "Ripsec VPN portal",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:8480/auth/callback"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "protocolMappers": [
+        {
+          "name": "roles in id token",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "firstName": "Alice",
+      "lastName": "Admin",
+      "email": "alice@ripsec.test",
+      "realmRoles": ["vpn-admin", "vpn-user"],
+      "credentials": [{ "type": "password", "value": "change-me", "temporary": true }]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "firstName": "Bob",
+      "lastName": "User",
+      "email": "bob@ripsec.test",
+      "realmRoles": ["vpn-user"],
+      "credentials": [{ "type": "password", "value": "change-me", "temporary": true }]
+    }
+  ]
+}

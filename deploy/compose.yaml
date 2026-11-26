@@ -1,0 +1,42 @@
+# Evaluation stack: Ripsec plus a preconfigured Keycloak, reachable from this machine only.
+# Not for production: Keycloak runs in development mode over plain HTTP.
+#   cp .env.example .env   (set a password)
+#   docker compose up --build
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}
+      # The browser and the VPN server reach Keycloak under different names.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+    ports: ["127.0.0.1:8081:8080"]
+    volumes:
+      - ./keycloak/ripsec-realm.json:/opt/keycloak/data/import/ripsec-realm.json:ro
+      - keycloak-data:/opt/keycloak/data
+
+  ripsec:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    ports:
+      - "500:500/udp"
+      - "4500:4500/udp"
+      # Windows keeps 500 and 4500 for its own IPsec service. The Ripsec client can use this one.
+      - "14500:4500/udp"
+      - "127.0.0.1:8480:8480"
+    volumes:
+      - ./ripsec.compose.toml:/etc/ripsec/ripsec.toml:ro
+      - ripsec-data:/var/lib/ripsec
+    depends_on: [keycloak]
+    restart: unless-stopped
+
+volumes:
+  keycloak-data:
+  ripsec-data:

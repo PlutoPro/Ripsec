@@ -1,0 +1,58 @@
+# Ripsec server configuration.
+
+# IPv4 address to serve IKE on, or "auto" for the default route's address.
+listen = "auto"
+# What clients connect to; written into generated profiles.
+public_address = "vpn.example.com"
+# IKE identity of this server.
+server_id = "vpn.example.com"
+# Virtual addresses handed to devices.
+pool = "10.99.0.0/24"
+dns = ["1.1.1.1"]
+# What connected clients may reach. 0.0.0.0/0 sends all their traffic through the VPN.
+local_subnets = ["0.0.0.0/0"]
+# Refuse peers that cannot do ML-KEM.
+require_post_quantum = true
+data_dir = "/var/lib/ripsec"
+# Device secrets are encrypted with this key. It is created on first start; back it up
+# separately from the data. RIPSEC_MASTER_KEY (32 bytes, base64) overrides it.
+# master_key_file = "/var/lib/ripsec/master.key"
+
+# Keep the encrypted device secrets in Cloud Cache instead of devices.json. Needs a Cloud Cache
+# deployment with TLS and persistence. The client secret is read from
+# RIPSEC_CLOUD_CACHE_CLIENT_SECRET or client_secret_file, never from this file.
+# [cloud_cache]
+# address = "kv.example.internal:7379"   # the name the server certificate carries
+# ca_file = "/etc/ripsec/kv-ca.crt"      # only this CA is trusted for the connection
+# token_url = "https://sso.example.com/realms/kv/protocol/openid-connect/token"
+# token_ca_file = "/etc/ripsec/sso-ca.crt"   # if Keycloak uses a private CA
+# client_id = "ripsec-gateway"
+# client_secret_file = "/etc/ripsec/kv-client-secret"
+# organization_id = "00000000-0000-0000-0000-000000000000"
+# refresh_seconds = 60
+
+[web]
+# The portal speaks plain HTTP. Put a TLS reverse proxy in front of it.
+listen = "127.0.0.1:8480"
+public_url = "https://vpn.example.com"
+
+[oidc]
+# Any OpenID Connect provider. Examples:
+#   Keycloak   https://id.example.com/realms/ripsec
+#   Authentik  https://id.example.com/application/o/ripsec/
+#   Okta       https://example.okta.com
+#   Entra ID   https://login.microsoftonline.com/<tenant-id>/v2.0
+# The value must match the provider's "issuer" exactly, trailing slash included.
+issuer = "https://id.example.com/realms/ripsec"
+client_id = "ripsec-portal"
+# client_secret = ""            # or set RIPSEC_OIDC_CLIENT_SECRET
+# Redirect URI to register at the provider: <public_url>/auth/callback
+scopes = "openid profile email"
+# Claim holding roles or groups, e.g. "roles", "groups", "realm_access.roles".
+roles_claim = "roles"
+admin_role = "vpn-admin"
+# Require this role to use the portal. Without it any account at the provider may enrol.
+user_role = "vpn-user"
+# Device credentials expire unless the owner signs in and renews them.
+credential_ttl_days = 7
+max_devices_per_user = 5

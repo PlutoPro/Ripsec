@@ -1,0 +1,42 @@
+# Layered over cloud-cache's deploy/docker-compose.yml by run.py: TLS on the TCP API and on
+# Keycloak, a second realm for portal users, and Ripsec itself. The paths come from run.py.
+services:
+  keycloak:
+    environment:
+      KC_HTTPS_CERTIFICATE_FILE: /tls/keycloak.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /tls/keycloak.key
+    volumes:
+      - ${TEST_DIR}/tls:/tls:ro
+      - ${RIPSEC_ROOT}/deploy/keycloak/ripsec-realm.json:/opt/keycloak/data/import/ripsec-realm.json:ro
+
+  kv1: &tls-node
+    environment:
+      TCP_TLS_CERT: /tls/kv.crt
+      TCP_TLS_KEY: /tls/kv.key
+    volumes:
+      - ${TEST_DIR}/tls:/tls:ro
+  kv2: *tls-node
+  kv3: *tls-node
+
+  haproxy:
+    networks:
+      default:
+        aliases: [kv.ripsec.test]
+
+  ripsec:
+    build:
+      context: ${RIPSEC_ROOT}
+      dockerfile: deploy/Dockerfile
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    environment:
+      RIPSEC_CLOUD_CACHE_CLIENT_SECRET: ${RIPSEC_GATEWAY_SECRET}
+    ports: ["127.0.0.1:8480:8480"]
+    volumes:
+      - ${TEST_DIR}/ripsec.toml:/etc/ripsec/ripsec.toml:ro
+      - ${TEST_DIR}/tls/ca.crt:/etc/ripsec/ca.crt:ro
+      - ripsec-data:/var/lib/ripsec
+
+volumes:
+  ripsec-data:

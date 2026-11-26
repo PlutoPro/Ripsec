@@ -1,0 +1,4 @@
+target
+.git
+deploy/.env
+deploy/full/.env

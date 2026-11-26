@@ -1,0 +1,126 @@
+# Full test stack: Ripsec keeping its device secrets in a three node Cloud Cache cluster, with
+# one Keycloak serving both realms, the Cloud Cache dashboard and an optional VPN client.
+# For testing on one machine only: demo passwords, and Keycloak in development mode.
+#
+#   cp .env.example .env     (point CLOUD_CACHE_DIR at your cloud-cache checkout)
+#   docker compose up -d --build
+#
+# The Cloud Cache services are taken from that checkout's own compose file, which is not modified.
+name: ripsec-full
+
+services:
+  # Makes the test CA, the server certificates and the gateway client's secret, once.
+  setup:
+    image: alpine:3.20
+    command: ["sh", "-c", "apk add -q --no-cache openssl && sh /setup.sh"]
+    volumes:
+      - ./setup.sh:/setup.sh:ro
+      - ca:/out/ca
+      - kv-tls:/out/kv
+      - keycloak-tls:/out/keycloak
+      - gateway-secret:/out/secret
+
+  keycloak:
+    extends: { file: "${CLOUD_CACHE_DIR:?set CLOUD_CACHE_DIR in .env}/deploy/docker-compose.yml", service: keycloak }
+    environment:
+      KC_HTTPS_CERTIFICATE_FILE: /tls/keycloak.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /tls/keycloak.key
+    volumes:
+      - keycloak-tls:/tls:ro
+      - ../keycloak/ripsec-realm.json:/opt/keycloak/data/import/ripsec-realm.json:ro
+    depends_on:
+      setup: { condition: service_completed_successfully }
+
+  # Creates the `ripsec-gateway` machine client with Cloud Cache's own script.
+  gateway-client:
+    image: python:3-alpine
+    network_mode: "service:keycloak"
+    command: ["sh", "/gateway-client.sh"]
+    environment:
+      KEYCLOAK_URL: http://localhost:8080
+      KEYCLOAK_ADMIN_USER: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      # Must match organization_id in ripsec.toml.
+      RIPSEC_ORG_ID: 5f0c1d52-7a1e-4b6f-9a40-2f7c1c9d3e11
+    volumes:
+      - ./gateway-client.sh:/gateway-client.sh:ro
+      - ${CLOUD_CACHE_DIR}/scripts/ripsec-gateway.py:/ripsec-gateway.py:ro
+      - gateway-secret:/secret:ro
+    depends_on: [keycloak]
+
+  cluster-certs:
+    extends: { file: "${CLOUD_CACHE_DIR}/deploy/docker-compose.yml", service: cluster-certs }
+    volumes:
+      - kv1-certs:/certs/kv1
+      - kv2-certs:/certs/kv2
+      - kv3-certs:/certs/kv3
+
+  kv1:
+    extends: { file: "${CLOUD_CACHE_DIR}/deploy/docker-compose.yml", service: kv1 }
+    environment: &kv-tls
+      TCP_TLS_CERT: /tls/kv.crt
+      TCP_TLS_KEY: /tls/kv.key
+    volumes: ["kv-tls:/tls:ro"]
+  kv2:
+    extends: { file: "${CLOUD_CACHE_DIR}/deploy/docker-compose.yml", service: kv2 }
+    environment: *kv-tls
+    volumes: ["kv-tls:/tls:ro"]
+  kv3:
+    extends: { file: "${CLOUD_CACHE_DIR}/deploy/docker-compose.yml", service: kv3 }
+    environment: *kv-tls
+    volumes: ["kv-tls:/tls:ro"]
+
+  haproxy:
+    extends: { file: "${CLOUD_CACHE_DIR}/deploy/docker-compose.yml", service: haproxy }
+    networks:
+      default:
+        aliases: [kv.ripsec.test]
+
+  dashboard:
+    extends: { file: "${CLOUD_CACHE_DIR}/deploy/docker-compose.yml", service: dashboard }
+
+  ripsec:
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    ports:
+      - "500:500/udp"
+      - "4500:4500/udp"
+      # Windows keeps 500 and 4500 for its own IPsec service. The Ripsec client can use this one.
+      - "14500:4500/udp"
+      - "127.0.0.1:8480:8480"
+    volumes:
+      - ./ripsec.toml:/etc/ripsec/ripsec.toml:ro
+      - ca:/ca:ro
+      - gateway-secret:/secret:ro
+      - ripsec-data:/var/lib/ripsec
+    depends_on:
+      gateway-client: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  # A strongSwan client for trying a device profile: docker compose --profile client up -d client
+  client:
+    profiles: [client]
+    build:
+      context: ../../tests/interop
+      dockerfile: strongswan.Dockerfile
+    cap_add: [NET_ADMIN]
+    command: ["/usr/libexec/ipsec/charon"]
+    volumes:
+      - ./connect.sh:/usr/local/bin/connect:ro
+
+volumes:
+  ca:
+  kv-tls:
+  keycloak-tls:
+  gateway-secret:
+  ripsec-data:
+  kv1-data:
+  kv1-certs:
+  kv2-data:
+  kv2-certs:
+  kv3-data:
+  kv3-certs:

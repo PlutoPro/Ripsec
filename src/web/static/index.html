@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ripsec VPN</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <strong>Ripsec VPN</strong>
+    <span id="who"></span>
+    <button id="logout" class="quiet" hidden>Sign out</button>
+  </header>
+  <main>
+    <section id="signin" hidden>
+      <h1>Post-quantum VPN</h1>
+      <p>Sign in with your organisation account to enrol a device.</p>
+      <p><a class="button" href="/auth/login">Sign in</a></p>
+    </section>
+
+    <div id="app" hidden>
+      <p id="error" role="alert" hidden></p>
+
+      <section>
+        <h2>Add a device</h2>
+        <form id="add">
+          <label>Name <input name="name" required maxlength="64" placeholder="Work laptop"></label>
+          <label id="subnets" hidden>Site subnets (gateways only)
+            <input name="subnets" placeholder="192.168.10.0/24, 10.20.0.0/16">
+          </label>
+          <button>Enrol</button>
+        </form>
+      </section>
+
+      <section id="result" hidden>
+        <h2>Save this now</h2>
+        <p>The secret is shown once and cannot be recovered.</p>
+        <dl>
+          <dt>Server</dt><dd id="r-server"></dd>
+          <dt>Remote ID</dt><dd id="r-serverid"></dd>
+          <dt>Local ID</dt><dd id="r-id"></dd>
+          <dt>Shared secret</dt><dd id="r-secret"></dd>
+        </dl>
+        <p class="actions">
+          <button id="dl-apple">iPhone / Mac profile</button>
+          <button id="dl-strongswan">strongSwan config</button>
+          <button id="dismiss" class="quiet">Done</button>
+        </p>
+        <p class="note">On Windows, add the strongSwan config to the Ripsec app. The built-in Windows VPN cannot use it.</p>
+      </section>
+
+      <section>
+        <h2>Devices</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Name</th><th>Owner</th><th>Identity</th><th>Access</th><th></th></tr></thead>
+            <tbody id="devices"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>Connected now</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Device</th><th>From</th><th>VPN address</th><th>Key exchange</th><th>Traffic in / out</th><th>Duration</th><th></th></tr></thead>
+            <tbody id="sessions"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,35 @@
+:root {
+  --bg: #f5f6f8; --card: #fff; --text: #1b1f24; --muted: #5c6670;
+  --line: #d9dee4; --accent: #2457c5; --good: #176b3a; --bad: #a32020;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151a; --card: #1b2027; --text: #e6e9ed; --muted: #98a2ad;
+    --line: #313842; --accent: #7ea6ff; --good: #6fd395; --bad: #ff8a8a;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+header { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+header span { margin-left: auto; color: var(--muted); }
+main { max-width: 960px; margin: 0 auto; padding: 16px; }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+h1, h2 { margin: 0 0 12px; line-height: 1.2; }
+h2 { font-size: 17px; }
+form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); flex: 1 1 220px; }
+input { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+button, .button { font: inherit; padding: 7px 14px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--card); cursor: pointer; text-decoration: none; display: inline-block; }
+button.quiet { background: transparent; color: var(--accent); border-color: var(--line); margin-right: 4px; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+dt { color: var(--muted); }
+dd { margin: 0; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, monospace; font-size: 13px; }
+.note { color: var(--muted); }
+.good { color: var(--good); }
+.bad, #error { color: var(--bad); }
