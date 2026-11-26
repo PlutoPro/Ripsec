@@ -1,0 +1,9 @@
+[package]
+name = "ripsec-proto"
+version = "0.1.0"
+edition = "2024"
+description = "IKEv2 wire format, key schedule and negotiation shared by the Ripsec server and client"
+license = "MIT"
+
+[dependencies]
+aws-lc-rs = "1"

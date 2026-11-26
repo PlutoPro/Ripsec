@@ -1,0 +1,16 @@
+[package]
+name = "ripsec-client"
+version = "0.1.0"
+edition = "2024"
+description = "Post-quantum IKEv2/IPsec VPN client for Ripsec"
+license = "MIT"
+
+[dependencies]
+ctrlc = { version = "3", features = ["termination"] }
+ripsec-proto = { path = "../crates/proto" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+wintun = "0.5"
