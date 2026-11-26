@@ -85,6 +85,8 @@ pub(super) struct Sa {
     /// Next request ID we will use.
     send_id: u32,
     last_reply: Vec<Vec<u8>>,
+    /// The keys the last request arrived under, if answering it changed them.
+    superseded: Option<Keys>,
     reassembly: Option<Reassembly>,
     pub created: Instant,
     pub last_seen: Instant,
@@ -121,6 +123,7 @@ impl Sa {
             recv_id: 0,
             send_id: 0,
             last_reply: Vec::new(),
+            superseded: None,
             reassembly: None,
             created: now,
             last_seen: now,
@@ -266,7 +269,21 @@ impl<D: Dataplane> Engine<D> {
         out: &mut Vec<Outgoing>,
     ) -> bool {
         // Nothing is trusted, including the source address, before the integrity check.
-        let Some(opened) = sa.keys.open(data) else { return true };
+        let Some(opened) = sa.keys.open(data) else {
+            // IKE_INTERMEDIATE changes the keys, but if our response was lost the peer
+            // repeats its request under the old ones (RFC 9242).
+            let repeated = header.flags & flag::RESPONSE == 0
+                && header.msg_id.wrapping_add(1) == sa.recv_id
+                && sa
+                    .superseded
+                    .as_ref()
+                    .and_then(|keys| keys.open(data))
+                    .is_some_and(|o| o.fragment.is_none_or(|(n, _)| n == 1));
+            if repeated {
+                out.extend(sa.last_reply.iter().map(|p| Outgoing { data: p.clone(), to: from, local_port }));
+            }
+            return true;
+        };
 
         if header.flags & flag::RESPONSE != 0 {
             if header.msg_id.wrapping_add(1) == sa.send_id {
@@ -317,9 +334,7 @@ impl<D: Dataplane> Engine<D> {
         sa.last_reply = sa.keys.seal(rh, reply.chain.first, &reply.chain.bytes, sa.frag_ok);
         sa.recv_id = sa.recv_id.wrapping_add(1);
         out.extend(sa.last_reply.iter().map(|p| sa.to_peer(p.clone())));
-        if let Some(keys) = reply.next_keys {
-            sa.keys = keys;
-        }
+        sa.superseded = reply.next_keys.map(|keys| std::mem::replace(&mut sa.keys, keys));
         !reply.close
     }
 

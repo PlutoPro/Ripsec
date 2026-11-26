@@ -8,4 +8,5 @@ pub mod secrets;
 pub mod server;
 pub mod store;
 pub mod web;
+#[cfg(target_os = "linux")]
 pub mod xfrm;

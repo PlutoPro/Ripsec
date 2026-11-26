@@ -1,9 +1,18 @@
+#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
+
 use ripsec::ike::Engine;
 use ripsec::seal::Vault;
 use ripsec::store::Store;
-use ripsec::{config, secrets, server, web, xfrm};
+use ripsec::{config, secrets, server, web};
 use std::sync::{Arc, Mutex};
 
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    eprintln!("ripsec: the server runs on Linux only; it uses the kernel's IPsec");
+    std::process::exit(1);
+}
+
+#[cfg(target_os = "linux")]
 fn main() {
     if let Err(e) = run() {
         eprintln!("ripsec: {e}");
@@ -11,6 +20,7 @@ fn main() {
     }
 }
 
+#[cfg(target_os = "linux")]
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let path = match args.as_slice() {
@@ -37,7 +47,7 @@ fn run() -> Result<(), String> {
         }
         None => None,
     };
-    let dataplane = xfrm::Xfrm::open().map_err(|e| format!("XFRM netlink: {e}"))?;
+    let dataplane = ripsec::xfrm::Xfrm::open().map_err(|e| format!("XFRM netlink: {e}"))?;
     let engine = Engine::new(config.vpn.clone(), dataplane, store.clone());
 
     // One thread is enough: packet encryption happens in the kernel.

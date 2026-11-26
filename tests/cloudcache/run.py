@@ -173,12 +173,28 @@ def eventually(probe, seconds):
 
 def connect(device):
     """Replaces any tunnel with a new one for this device."""
-    profile = device["strongswan"].replace("remote_addrs = 127.0.0.1", "remote_addrs = ripsec")
+    # By address, not name: a full tunnel replaces the client's DNS servers with the pushed ones.
+    address = run("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                  f"{PROJECT}-ripsec-1").stdout.strip()
+    profile = device["strongswan"].replace("remote_addrs = 127.0.0.1", f"remote_addrs = {address}")
     run("docker", "exec", CLIENT, "swanctl", "--terminate", "--ike", "ripsec", "--force")
     run("docker", "exec", "-i", CLIENT, "sh", "-c", "cat > /etc/swanctl/swanctl.conf", input=profile)
     run("docker", "exec", CLIENT, "swanctl", "--load-all", "--clear")
-    return run("docker", "exec", CLIENT, "swanctl", "--initiate", "--child", "net",
-               "--timeout", "10").returncode == 0
+    result = run("docker", "exec", CLIENT, "swanctl", "--initiate", "--child", "net",
+                 "--timeout", "10")
+    if result.returncode:
+        # Shown whether or not failing was expected: an expected refusal should be the
+        # server's, not a client that never reached it.
+        print("      client could not connect:", " | ".join(result.stdout.strip().splitlines()[-4:])[-600:],
+              result.stderr.strip()[-200:], flush=True)
+    return result.returncode == 0
+
+
+def refused(stack, device):
+    """True only if the connection failed because the server turned the device away."""
+    reason = f"unknown or expired identity \"{device['device']['id']}\""
+    before = stack.log().count(reason)
+    return not connect(device) and eventually(lambda: stack.log().count(reason) > before, 10)
 
 
 def enrol(user, name):
@@ -235,7 +251,7 @@ def scenario(stack, cache, organization):
     check("existing credentials keep working", connect(laptop), stack.log())
     status, _ = bob.api("DELETE", f"/api/devices/{urllib.parse.quote(laptop_id)}")
     check("revocation is accepted during the outage", status == 204, status)
-    check("revoked device is refused at once", not connect(laptop))
+    check("revoked device is refused at once", refused(stack, laptop), stack.log())
     check("the pending delete is saved to disk", laptop_id in stack.compose(
         "exec", "-T", "ripsec", "cat", "/var/lib/ripsec/revocations.json").stdout)
     stack.restart_ripsec(alice, bob)
@@ -253,7 +269,7 @@ def scenario(stack, cache, organization):
     print("== Cloud Cache unreachable at startup")
     stack.must("stop", "haproxy")
     stack.restart_ripsec(alice, bob)
-    check("nobody can connect without secrets", not connect(phone))
+    check("nobody can connect without secrets", refused(stack, phone), stack.log())
     stack.must("start", "haproxy")
     check("recovers by itself", eventually(lambda: connect(phone), 90), stack.log())
 
@@ -263,12 +279,12 @@ def scenario(stack, cache, organization):
     check("write succeeds", cache.put(tablet_id, cache.get(phone_id)) in (200, 201, 204))
     check("another device's entry is rejected as an incident",
           eventually(lambda: f"INCIDENT: the entry for {tablet_id}" in stack.log(), 30), stack.log())
-    check("the tampered device is disabled", not connect(tablet))
+    check("the tampered device is disabled", refused(stack, tablet), stack.log())
     check("other devices are unaffected", connect(phone), stack.log())
     check("delete succeeds", cache.call("DELETE", cache.path(phone_id))[0] in (200, 204))
     check("a deleted entry disables its device",
           eventually(lambda: f"no secret for {phone_id}" in stack.log(), 30), stack.log())
-    check("and it cannot connect", not connect(phone))
+    check("and it cannot connect", refused(stack, phone), stack.log())
 
 
 def main(cloud_cache):

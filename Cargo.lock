@@ -968,6 +968,7 @@ dependencies = [
  "jsonwebtoken",
  "libc",
  "rcgen",
+ "ripsec-client",
  "ripsec-proto",
  "rustls",
  "serde",
