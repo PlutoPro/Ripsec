@@ -72,7 +72,7 @@ ports bound to this machine. See [Server setup](docs/server.md) for a real deplo
 | Linux | [`ripsec-client`](docs/clients.md#command-line-client) | Tested against the server |
 | Linux, routers (road warrior or site-to-site) | [strongSwan 6](docs/clients.md#strongswan) with ML-KEM | Tested (6.1.0) |
 | iPhone, iPad, Mac (version 26 or later) | [Built-in VPN profile](docs/clients.md#apple-devices) | Profile generated, **never tested on a device** |
-| Android 7.0 or later | [Ripsec app](docs/clients.md#android) | New. Tested on an emulator, **not on a phone** |
+| Android 7.0 or later | [Ripsec app](docs/clients.md#android) | New. Tried on one Android 17 phone and an emulator |
 | Windows built-in VPN | | Not possible: it cannot sign in with a shared key |
 
 ## Documentation

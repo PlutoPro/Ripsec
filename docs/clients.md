@@ -145,7 +145,7 @@ route rather than email.
 
 ## Android
 
-Android 7.0 or later. **New, and so far tested only on an Android 16 emulator, not on a phone.**
+Android 7.0 or later. **New: tried on an Android 16 emulator and one Samsung phone with Android 17.**
 
 ### Install
 
@@ -182,5 +182,8 @@ turning this one off in Android's settings, disconnects it.
 
 On the emulator: adding a profile, the permission prompt, a full tunnel with traffic both ways, disconnecting,
 reconnecting, running in the background for a short while, and recovering from a server restart. Large pings that
-had to be fragmented lost about 2% of replies; full-size packets lost none. Not tested: a physical phone, network
-switching, long sleeps and battery use.
+had to be fragmented lost about 2% of replies; full-size packets lost none.
+
+On the phone, over Wi-Fi to a server on the same network: connecting, a full tunnel with IPv4 traffic and DNS,
+large packets with no loss, and IPv6 blocked. Not tested: mobile data, switching networks, long sleeps and battery
+use.
