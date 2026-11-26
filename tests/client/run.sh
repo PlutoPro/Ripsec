@@ -155,10 +155,23 @@ docker start rc-server >/dev/null
 check "reconnects when it returns" eventually 90 bash -c \
   '[ "$(docker exec rc-client grep -c "^connected:" /tmp/client.log)" -ge 2 ]'
 check "traffic after reconnecting" ping_ok
-docker stop -t 10 rc-server >/dev/null
-check "exits when the server closes the connection" eventually 15 stopped
-check "and says so" log_has "the server closed the connection"
+docker restart -t 10 rc-server >/dev/null
+check "notices a server that shuts down cleanly" eventually 20 log_has "the server closed the connection"
+check "reconnects after the restart" eventually 90 bash -c \
+  '[ "$(docker exec rc-client grep -c "^connected:" /tmp/client.log)" -ge 3 ]'
+check "traffic after the restart" ping_ok
+check "still stops on request" stop
 check "interface is gone" no_interface
+
+echo "== one profile used twice"
+start ok.conf
+check "first copy connects" eventually 20 log_has "connected:"
+for i in 1 2 3; do
+  client timeout 20 /target/release/ripsec-client check /tmp/ok.conf >/dev/null 2>&1
+  pause 6
+done
+check "a copy that keeps being displaced gives up" eventually 30 stopped
+check "and says why" log_has "in use somewhere else"
 
 [ $failures -eq 0 ] || { echo "== client log"; client cat /tmp/client.log; echo "== server log"; docker logs rc-server 2>&1 | tail -30; }
 echo

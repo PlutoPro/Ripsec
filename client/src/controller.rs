@@ -1,9 +1,10 @@
-//! The one connection the service manages, and what the app is told about it.
+//! The one connection a background service manages, and what the app is told about it.
 
+use crate::connection::{self, Event};
+use crate::ipc::{Request, State, Status};
 use crate::store::{Store, summary};
-use ripsec_client::connection::{self, Event};
-use ripsec_client::ipc::{Request, State, Status};
-use ripsec_client::tunnel::Counters;
+use crate::tun::{Network, System};
+use crate::tunnel::Counters;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -61,17 +62,26 @@ impl Controller {
     pub fn handle(&self, request: Request) -> Status {
         match request {
             Request::Status => {}
-            Request::Connect => {
-                if let Err(e) = self.connect() {
-                    lock(&self.live).error = Some(e);
-                }
-            }
+            Request::Connect => self.connect_with(Arc::new(System)),
             Request::Disconnect => self.disconnect(),
         }
         self.status()
     }
 
-    fn status(&self) -> Status {
+    /// Starts connecting, using this to create the interface. Does nothing if a
+    /// connection is already being kept up.
+    pub fn connect_with(&self, network: Arc<dyn Network>) {
+        if let Err(e) = self.connect(network.clone()) {
+            lock(&self.live).error = Some(e);
+            network.finished();
+        }
+    }
+
+    pub fn store(&self) -> &Store {
+        &self.store
+    }
+
+    pub fn status(&self) -> Status {
         let profile = self.store.load();
         let counters = lock(&self.counters).clone();
         let live = lock(&self.live);
@@ -87,12 +97,13 @@ impl Controller {
         }
     }
 
-    fn connect(&self) -> Result<(), String> {
+    fn connect(&self, network: Arc<dyn Network>) -> Result<(), String> {
         let mut worker = lock(&self.worker);
         if worker.as_ref().is_some_and(|w| !w.thread.is_finished()) {
             return Ok(());
         }
-        let (profile, options) = self.store.load()?.ok_or("add a profile first")?;
+        let (profile, mut options) = self.store.load()?.ok_or("add a profile first")?;
+        options.network = network;
         let counters = Arc::new(Counters::default());
         *lock(&self.counters) = counters.clone();
         *lock(&self.live) = Live { state: State::Connecting, ..Live::default() };
@@ -118,7 +129,7 @@ impl Controller {
                         live.since = Some(Instant::now());
                         live.error = None;
                     }
-                    Event::Lost | Event::Renewing | Event::Unreachable { .. } => {
+                    Event::Lost | Event::Closed | Event::Renewing | Event::Unreachable { .. } => {
                         log(&journal, "reconnecting");
                         live.state = State::Reconnecting;
                         live.address = None;
@@ -134,6 +145,7 @@ impl Controller {
                 },
             );
             *lock(&live) = Live { error: result.err(), ..Live::default() };
+            options.network.finished();
         });
         *worker = Some(Worker { stop, thread });
         Ok(())

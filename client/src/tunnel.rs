@@ -4,9 +4,10 @@
 use crate::esp;
 use crate::ike::{self, Event, MARKER, Session};
 use crate::profile::Profile;
-use crate::tun::{self, Tun};
+use crate::tun::{self, Network, System, Tun};
 use ripsec_proto::net::Cidr;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs, UdpSocket};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
@@ -26,6 +27,14 @@ pub struct Options {
     pub port: Option<u16>,
     /// Overrides the networks routed through the tunnel. They must be within the profile's.
     pub routes: Vec<Cidr>,
+    /// How the interface is created on this platform.
+    pub network: Arc<dyn Network>,
+}
+
+impl Default for Options {
+    fn default() -> Options {
+        Options { server: None, port: None, routes: Vec::new(), network: Arc::new(System) }
+    }
 }
 
 /// Why a working connection ended.
@@ -74,6 +83,7 @@ impl Connected {
         let port = options.port.or(profile.port).unwrap_or(4500);
         let server = resolve(options.server.as_deref().unwrap_or(&profile.server), port)?;
         let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+        options.network.protect(&socket).map_err(ike::Error::Refused)?;
         socket.connect(server)?;
         let (session, child) = Session::connect(&socket, profile, stop)?;
         Ok(Connected { socket, session, child, server: *server.ip() })
@@ -111,7 +121,7 @@ impl Connected {
                 .into());
         }
         let dns = self.child.dns.iter().copied().filter(|d| everything || covers(&routes, *d)).collect();
-        let tun = Tun::open(&tun::Settings {
+        let tun = options.network.open(&tun::Settings {
             address: self.child.address,
             routes: routes.clone(),
             dns,

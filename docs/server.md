@@ -154,7 +154,10 @@ provider does *not*: revoke their devices too, or wait for the credentials to ex
 renewed or limited by `max_devices_per_user`.
 
 **Portal sessions** last one hour and are kept in memory, so a restart signs everyone out. Device
-connections have to be made again after a restart.
+connections are lost too; the Ripsec clients reconnect by themselves.
+
+**There is no high availability yet.** Run one server per `data_dir`: two servers would not share devices or
+revocations.
 
 **After a hard crash** kernel SAs and policies can remain. Clear them with
 `ip xfrm state flush; ip xfrm policy flush` (this removes *all* IPsec state on the host).

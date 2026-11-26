@@ -11,6 +11,7 @@ const LABELS = {
 };
 
 let status = null;
+let android = false;
 let importing = false;
 let busy = false;
 // An error from something the user just did, as opposed to one the service reports.
@@ -63,7 +64,7 @@ function render() {
   text("action", LABELS[state][1]);
   $("power").dataset.state = state;
   $("power").disabled = busy;
-  text("detail", connected ? "Post-quantum encryption" : state === "reconnecting" ? "The server stopped answering." : "");
+  text("detail", connected ? "Post-quantum encryption" : state === "reconnecting" ? "The connection to the server was interrupted." : "");
   text("server", `${status.profile.server}:${status.profile.port}`);
   const routes = connected ? status.routes : status.profile.routes;
   text("routes", describe(routes));
@@ -73,7 +74,8 @@ function render() {
     text("duration", duration(status.connected_seconds));
     text("traffic", `↓ ${size(status.bytes_in)}   ↑ ${size(status.bytes_out)}`);
   }
-  $("ipv6").hidden = !(connected && everything(routes));
+  // Android blocks IPv6 while the VPN is up, so there is nothing to warn about there.
+  $("ipv6").hidden = android || !(connected && everything(routes));
   showError(ownError || status.error);
 }
 
@@ -167,6 +169,11 @@ $("remove").addEventListener("click", () => {
   armed = null;
   text("remove", "Remove profile");
   act("remove_profile");
+});
+
+invoke("platform").then((os) => {
+  android = os === "android";
+  if (android) text("consent", "Android will ask you to allow the VPN when you first connect.");
 });
 
 (async function poll() {

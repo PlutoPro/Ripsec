@@ -3081,11 +3081,13 @@ dependencies = [
 name = "ripsec-app"
 version = "0.1.0"
 dependencies = [
+ "jni",
  "ripsec-client",
  "serde",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "tauri-plugin-ripsec-vpn",
  "tauri-plugin-single-instance",
  "windows-sys 0.61.2",
 ]
@@ -3917,6 +3919,15 @@ dependencies = [
  "thiserror 2.0.21",
  "toml 1.2.3+spec-1.1.0",
  "url",
+]
+
+[[package]]
+name = "tauri-plugin-ripsec-vpn"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

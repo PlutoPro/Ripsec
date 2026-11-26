@@ -36,7 +36,7 @@ fn arguments(mut args: impl Iterator<Item = String>) -> Result<Arguments, String
     let path = args.next().ok_or(USAGE)?;
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
     let profile = Profile::parse(&text).map_err(|e| format!("{path}: {e}"))?;
-    let mut options = Options { server: None, port: None, routes: Vec::new() };
+    let mut options = Options::default();
     while let Some(name) = args.next() {
         let value = args.next().ok_or_else(|| format!("{name} needs a value\n\n{USAGE}"))?;
         match name.as_str() {
@@ -77,6 +77,7 @@ fn run(args: Arguments) -> Result<(), String> {
             }
         }
         Event::Lost => println!("the server stopped responding; reconnecting"),
+        Event::Closed => println!("the server closed the connection; reconnecting"),
         Event::Renewing => println!("renewing the connection for fresh keys"),
         Event::Unreachable { retry_in } => {
             println!("cannot reach the server; retrying in {}s", retry_in.as_secs());

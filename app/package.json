@@ -1,0 +1,11 @@
+{
+  "name": "ripsec-app",
+  "private": true,
+  "description": "Only here to pin the Tauri command line tool; the app's pages need no packages.",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.5"
+  }
+}

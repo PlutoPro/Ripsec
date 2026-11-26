@@ -1,6 +1,6 @@
 //! The service's end of the named pipe.
 
-use crate::controller::Controller;
+use ripsec_client::controller::Controller;
 use ripsec_client::ipc::{MAX_REQUEST, Request};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Write};

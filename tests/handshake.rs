@@ -284,8 +284,17 @@ fn garbage_does_not_disturb_either_end() {
     socket.set_read_timeout(Some(Duration::from_millis(50))).unwrap();
     let mut buffer = [0u8; 65536];
     while socket.recv(&mut buffer).is_ok() {}
-    session.probe(&socket).unwrap();
-    assert_eq!(deliver(&socket, &mut session), Event::Alive);
+    // The flood can overflow the server's receive buffer, so ask again if need be.
+    socket.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
+    let answered = (0..20).any(|_| {
+        session.probe(&socket).unwrap();
+        socket.recv(&mut buffer).is_ok_and(|n| {
+            buffer[..n]
+                .strip_prefix(&MARKER)
+                .is_some_and(|m| session.handle(&socket, m).unwrap() == Event::Alive)
+        })
+    });
+    assert!(answered);
 }
 
 #[test]

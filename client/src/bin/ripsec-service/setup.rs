@@ -1,9 +1,9 @@
 //! Registering the service with Windows, and running as it.
 
-use crate::controller::Controller;
 use crate::server;
-use crate::store::Store;
+use ripsec_client::controller::Controller;
 use ripsec_client::ipc::PIPE;
+use ripsec_client::store::Store;
 use std::ffi::{OsString, c_void};
 use std::path::PathBuf;
 use std::process::Command;
@@ -73,13 +73,19 @@ fn protect(store: &Store) -> Result<(), String> {
     if status.success() { Ok(()) } else { Err("cannot protect the data directory".into()) }
 }
 
+/// Next to the installed program, under Program Files.
+pub fn installed_store() -> Result<Store, String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    Ok(Store::at(exe.with_file_name("data")))
+}
+
 pub fn install() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     // The service runs as the system. Anyone able to replace its files would gain that power.
     if !exe.starts_with(program_files()?) {
         return Err("run the installer: the service must be installed under Program Files".into());
     }
-    protect(&Store::installed()?)?;
+    protect(&installed_store()?)?;
 
     let access = ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE;
     let manager = ServiceManager::local_computer(None::<&str>, access).map_err(describe)?;
@@ -165,7 +171,7 @@ fn serve() -> Result<(), String> {
         let _ = handle.set_service_status(status);
     };
 
-    let controller = Controller::new(Store::installed()?);
+    let controller = Controller::new(installed_store()?);
     let serving = controller.clone();
     let listener = std::thread::spawn(move || {
         let result = server::serve(PIPE, true, serving);

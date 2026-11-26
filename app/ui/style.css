@@ -12,7 +12,10 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 "Segoe UI", system-ui, sans-serif; }
-main { max-width: 26rem; margin: 0 auto; padding: 20px; }
+main {
+  max-width: 26rem; margin: 0 auto;
+  padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+}
 h1 { font-size: 1.25rem; margin: 0 0 .5rem; }
 .muted { color: var(--muted); font-size: .9rem; }
 code { font-family: Consolas, ui-monospace, monospace; }

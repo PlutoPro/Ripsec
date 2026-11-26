@@ -113,8 +113,9 @@ sudo ripsec-client connect ripsec.conf
 | `--port PORT` | Server's NAT traversal port (default 4500) |
 | `--route CIDR` | Send only this network through the tunnel; repeat for more |
 
-Ctrl+C disconnects and removes the routes. It reconnects by itself if the server stops answering, and stops
-if the server disconnects it (for example after revocation).
+Ctrl+C disconnects and removes the routes. It reconnects by itself if the server stops answering or restarts. A
+revoked device is refused on reconnecting, and it stops with that reason. It also stops if it keeps being closed
+right after connecting, which happens when two machines share one profile.
 
 - On Linux it creates `ripsec0` and needs root. DNS is set through `resolvectl` when present.
 - On Windows, put `wintun.dll` next to the program and use an administrator prompt.
@@ -144,5 +145,40 @@ route rather than email.
 
 ## Android
 
-Not supported yet. The built-in Android VPN has no post-quantum key exchange, and the strongSwan app does not
-sign in with shared keys.
+Android 7.0 or later. **New, and so far tested only on an Android 16 emulator, not on a phone.**
+
+### Install
+
+There is no published download yet. Build the APK and install it with USB debugging:
+
+```powershell
+./scripts/build-android.ps1                      # needs the Android SDK, an NDK, a JDK and Node.js
+adb install app\gen\android\app\build\outputs\apk\universal\debug\app-universal-debug.apk
+```
+
+This is a **debug build**, signed with your local debug key: use it on your own devices, and do not distribute it.
+
+### Use
+
+1. Copy `ripsec.conf` to the phone (a cable or a similar direct route, not email).
+2. Open **Ripsec**, tap **Choose ripsec.conf…**, check the server and port, then **Add profile**.
+3. Tap the round button. The first time, Android asks you to allow the VPN, and may ask about notifications.
+4. Delete the copy of `ripsec.conf` from your downloads.
+
+The connection runs in the background with a notification, and survives leaving the app. Using another VPN app, or
+turning this one off in Android's settings, disconnects it.
+
+### How it behaves
+
+- **IPv6 is blocked** while connected, so it cannot bypass the VPN.
+- The profile is kept in the app's private storage, excluded from backups. It is not additionally encrypted.
+- No always-on VPN and no start at boot yet. There is no kill switch while reconnecting.
+- After switching networks (Wi-Fi to mobile data) expect about a minute before traffic resumes.
+- If Android is very short of memory it may close the app while you are picking a file; pick it again.
+
+### What was tested
+
+On the emulator: adding a profile, the permission prompt, a full tunnel with traffic both ways, disconnecting,
+reconnecting, running in the background for a short while, and recovering from a server restart. Large pings that
+had to be fragmented lost about 2% of replies; full-size packets lost none. Not tested: a physical phone, network
+switching, long sleeps and battery use.

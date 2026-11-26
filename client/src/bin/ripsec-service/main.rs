@@ -1,13 +1,12 @@
 //! The Windows service that owns the tunnel and the stored profile.
 
 #[cfg(windows)]
-mod controller;
+use ripsec_client::{controller, store};
+
 #[cfg(windows)]
 mod server;
 #[cfg(windows)]
 mod setup;
-#[cfg(windows)]
-mod store;
 
 #[cfg(windows)]
 fn main() -> std::process::ExitCode {
@@ -19,9 +18,9 @@ fn main() -> std::process::ExitCode {
         ["install"] => setup::install(),
         ["uninstall"] => setup::uninstall(),
         ["import", file, options @ ..] => {
-            store::Store::installed().and_then(|s| s.import(file.as_ref(), options))
+            setup::installed_store().and_then(|s| s.import(file.as_ref(), options))
         }
-        ["remove"] => store::Store::installed().and_then(|s| s.remove()),
+        ["remove"] => setup::installed_store().and_then(|s| s.remove()),
         // For development: the same service in the foreground, with a profile of your choice.
         #[cfg(debug_assertions)]
         ["console", pipe, directory] => {

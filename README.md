@@ -18,8 +18,8 @@
   its profile. Credentials expire, can be renewed, and revoking one disconnects it within about a second.
 - **Fast data path.** On the server, ESP packets are encrypted by the Linux kernel and never pass through
   user space.
-- **A Windows app and a command line client**, plus interoperability with strongSwan for road warriors and
-  site-to-site gateways.
+- **Apps for Windows and Android and a command line client**, plus interoperability with strongSwan for road
+  warriors and site-to-site gateways.
 - **Secrets encrypted at rest**, on the server's disk or in a replicated
   [Cloud Cache](https://github.com/PlutoPro/Cloud-Cache) cluster.
 
@@ -72,7 +72,7 @@ ports bound to this machine. See [Server setup](docs/server.md) for a real deplo
 | Linux | [`ripsec-client`](docs/clients.md#command-line-client) | Tested against the server |
 | Linux, routers (road warrior or site-to-site) | [strongSwan 6](docs/clients.md#strongswan) with ML-KEM | Tested (6.1.0) |
 | iPhone, iPad, Mac (version 26 or later) | [Built-in VPN profile](docs/clients.md#apple-devices) | Profile generated, **never tested on a device** |
-| Android | | Not supported yet |
+| Android 7.0 or later | [Ripsec app](docs/clients.md#android) | New. Tested on an emulator, **not on a phone** |
 | Windows built-in VPN | | Not possible: it cannot sign in with a shared key |
 
 ## Documentation
@@ -106,6 +106,7 @@ Know these before depending on it:
   administrator revokes the device.
 - One live connection per device credential. No MOBIKE.
 - No kill switch: if the VPN drops, traffic uses the normal network until it is back.
+- One server only: there is no high availability yet.
 - Throughput has not been measured.
 
 ## Development
@@ -114,7 +115,7 @@ Know these before depending on it:
 crates/proto/   IKEv2 wire format, negotiation and cryptography, shared by both ends
 src/            server: IKEv2 engine, kernel dataplane, portal, secret storage
 client/         client library, command line client and Windows service
-app/            Windows app (Tauri)
+app/            Windows and Android app (Tauri)
 deploy/         Docker images, compose stacks, example configuration
 tests/          interoperability and end to end tests
 ```
@@ -126,9 +127,10 @@ bash tests/client/run.sh                     # ripsec-client against the server
 python tests/e2e/portal.py                   # Keycloak sign-in, enrolment, tunnel, revocation
 python tests/cloudcache/run.py <cloud-cache> # against a three node Cloud Cache cluster
 ./scripts/build-windows.ps1 -Wintun <dll>    # Windows installer
+./scripts/build-android.ps1                  # Android APK (debug)
 ```
 
-All but the first and last need Docker with a Linux kernel that supports IPsec.
+The four tests after the first need Docker with a Linux kernel that supports IPsec.
 
 ## License
 

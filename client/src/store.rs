@@ -1,9 +1,10 @@
-//! The stored profile. It holds the device secret, so its directory is readable only by
-//! the system and administrators (set up by `install`).
+//! The stored profile. It holds the device secret, so its directory must be private: on
+//! Windows only the system and administrators can read it (set up by `install`), and on
+//! Android it is the app's own storage, excluded from backups.
 
-use ripsec_client::ipc::ProfileSummary;
-use ripsec_client::profile::Profile;
-use ripsec_client::tunnel::Options;
+use crate::ipc::ProfileSummary;
+use crate::profile::Profile;
+use crate::tunnel::Options;
 use ripsec_proto::net::Cidr;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -59,12 +60,6 @@ impl Store {
         Store { directory }
     }
 
-    /// Next to the installed program, under Program Files.
-    pub fn installed() -> Result<Store, String> {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        Ok(Store::at(exe.with_file_name("data")))
-    }
-
     pub fn directory(&self) -> &Path {
         &self.directory
     }
@@ -79,15 +74,23 @@ impl Store {
             return Err("that file is too large to be a profile".into());
         }
         let text = fs::read_to_string(file).map_err(|e| format!("{}: {e}", file.display()))?;
+        self.import_text(text, options)
+    }
+
+    /// Stores a profile already read, with options as on the command line.
+    pub fn import_text(&self, text: String, options: &[&str]) -> Result<(), String> {
+        if text.len() as u64 > MAX_PROFILE {
+            return Err("that file is too large to be a profile".into());
+        }
         let saved = saved(text, options)?;
         if !self.directory.is_dir() {
-            return Err("Ripsec is not installed: the data directory is missing".into());
+            return Err("the data directory is missing; is Ripsec installed?".into());
         }
         let json = serde_json::to_vec(&saved).map_err(|e| e.to_string())?;
         let temporary = self.directory.join("profile.tmp");
         fs::write(&temporary, json)
             .and_then(|()| fs::rename(&temporary, self.path()))
-            .map_err(|e| format!("cannot save the profile (administrator rights needed): {e}"))
+            .map_err(|e| format!("cannot save the profile: {e}"))
     }
 
     pub fn remove(&self) -> Result<(), String> {
@@ -107,7 +110,8 @@ impl Store {
         let saved: Saved = serde_json::from_slice(&json).map_err(|_| "the stored profile is damaged")?;
         let profile = Profile::parse(&saved.profile)?;
         let routes = saved.routes.iter().map(|r| r.parse()).collect::<Result<Vec<Cidr>, _>>()?;
-        Ok(Some((profile, Options { server: saved.server, port: saved.port, routes })))
+        let options = Options { server: saved.server, port: saved.port, routes, ..Options::default() };
+        Ok(Some((profile, options)))
     }
 }
 

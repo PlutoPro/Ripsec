@@ -1,7 +1,8 @@
 //! The virtual network interface and the routes that lead into it.
 
 use ripsec_proto::net::Cidr;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, UdpSocket};
+#[cfg(not(target_os = "android"))]
 use std::process::Command;
 
 /// Leaves room for the outer IP, UDP and ESP headers on an ordinary 1500 byte path.
@@ -15,6 +16,37 @@ pub struct Settings {
     pub server: Ipv4Addr,
 }
 
+/// What a tunnel needs from the operating system.
+pub trait Network: Send + Sync {
+    /// Keeps the socket that carries the tunnel from being routed into it.
+    fn protect(&self, _socket: &UdpSocket) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Creates the interface with these addresses and routes.
+    fn open(&self, settings: &Settings) -> Result<Tun, String>;
+
+    /// The connection is over and will not be retried.
+    fn finished(&self) {}
+}
+
+/// Linux and Windows: this process creates the interface and routes itself. The server is
+/// kept outside the tunnel by a route, so sockets need no protection.
+pub struct System;
+
+impl Network for System {
+    #[cfg(not(target_os = "android"))]
+    fn open(&self, settings: &Settings) -> Result<Tun, String> {
+        Tun::open(settings)
+    }
+
+    #[cfg(target_os = "android")]
+    fn open(&self, _: &Settings) -> Result<Tun, String> {
+        Err("on Android only the app's VPN service can create the interface".into())
+    }
+}
+
+#[cfg(not(target_os = "android"))]
 impl Settings {
     /// "Everything" is added as two halves, which win over the default route without
     /// replacing it.
@@ -39,6 +71,7 @@ impl Settings {
     }
 }
 
+#[cfg(not(target_os = "android"))]
 fn command(program: &str, args: &[&str]) -> Result<String, String> {
     let output =
         Command::new(program).args(args).output().map_err(|e| format!("cannot run {program}: {e}"))?;
@@ -51,19 +84,24 @@ fn command(program: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub use linux::Tun;
 #[cfg(windows)]
 pub use windows::Tun;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux {
+    #[cfg(target_os = "linux")]
     use super::{MTU, Settings, command};
-    use std::fs::{File, OpenOptions};
+    use std::fs::File;
+    #[cfg(target_os = "linux")]
+    use std::fs::OpenOptions;
     use std::io::{self, Read, Write};
     use std::os::fd::AsRawFd;
 
+    #[cfg(target_os = "linux")]
     const TUNSETIFF: libc::c_ulong = 0x4004_54ca;
+    #[cfg(target_os = "linux")]
     const NAME: &str = "ripsec0";
 
     /// The interface, and with it every route into it, disappears when this is dropped.
@@ -74,6 +112,13 @@ mod linux {
     }
 
     impl Tun {
+        /// Takes over an interface that Android's VpnService has already set up.
+        #[cfg(target_os = "android")]
+        pub fn from_fd(fd: std::os::fd::OwnedFd) -> Tun {
+            Tun { file: File::from(fd), server_route: None }
+        }
+
+        #[cfg(target_os = "linux")]
         pub fn open(settings: &Settings) -> Result<Tun, String> {
             let file = OpenOptions::new()
                 .read(true)
@@ -100,6 +145,7 @@ mod linux {
             Ok(tun)
         }
 
+        #[cfg(target_os = "linux")]
         fn configure(&mut self, settings: &Settings) -> Result<(), String> {
             let address = format!("{}/32", settings.address);
             command("ip", &["address", "add", &address, "dev", NAME])?;
@@ -169,11 +215,14 @@ mod linux {
 
     impl Drop for Tun {
         fn drop(&mut self) {
+            #[cfg(target_os = "linux")]
             if let Some(route) = &self.server_route
                 && let Err(e) = command("ip", &["route", "del", route])
             {
                 eprintln!("warning: {e}");
             }
+            // On Android there is never a route of our own to remove.
+            let _ = &self.server_route;
         }
     }
 }
@@ -328,7 +377,7 @@ mod windows {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "android")))]
 mod tests {
     use super::*;
 

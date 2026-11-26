@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ripsec</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -18,11 +18,11 @@
       <h1>Add your profile</h1>
       <ol>
         <li>Sign in to your organisation’s Ripsec portal.</li>
-        <li>Add this computer as a device.</li>
+        <li>Add this device.</li>
         <li>Click <strong>strongSwan config</strong> to download <code>ripsec.conf</code>.</li>
       </ol>
       <button class="primary choose">Choose ripsec.conf…</button>
-      <p class="muted">Windows will ask for permission once.</p>
+      <p class="muted" id="consent">Windows will ask for permission once.</p>
     </section>
 
     <section id="home" hidden>
