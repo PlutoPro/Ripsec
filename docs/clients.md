@@ -162,7 +162,9 @@ This is a **debug build**, signed with your local debug key: use it on your own 
 
 1. Copy `ripsec.conf` to the phone (a cable or a similar direct route, not email).
 2. Open **Ripsec**, tap **Choose ripsec.conf…**, check the server and port, then **Add profile**.
-3. Tap the round button. The first time, Android asks you to allow the VPN, and may ask about notifications.
+3. Tap the round button. The first time, Android asks you to allow the VPN, and may ask about notifications. On
+   Android 17, if the server is on your local network, it also asks to let Ripsec find nearby devices: allow it, or
+   the server cannot be reached.
 4. Delete the copy of `ripsec.conf` from your downloads.
 
 The connection runs in the background with a notification, and survives leaving the app. Using another VPN app, or

@@ -14,6 +14,7 @@ mod android {
     #[derive(Serialize)]
     struct Start<'a> {
         directory: &'a str,
+        local: bool,
     }
 
     #[derive(Deserialize)]
@@ -39,9 +40,9 @@ mod android {
         }
 
         /// Asks for the VPN permission if needed, then starts the service.
-        pub fn start(&self, directory: &str) -> Result<(), String> {
+        pub fn start(&self, directory: &str, local: bool) -> Result<(), String> {
             self.0
-                .run_mobile_plugin::<Done>("start", Start { directory })
+                .run_mobile_plugin::<Done>("start", Start { directory, local })
                 .map(|_| ())
                 .map_err(|e| e.to_string())
         }
