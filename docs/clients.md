@@ -145,7 +145,7 @@ route rather than email.
 
 ## Android
 
-Android 7.0 or later. **New, and so far tested only on an Android 16 emulator, not on a phone.**
+Android 7.0 or later. **New: tried on an Android 16 emulator and one Samsung phone with Android 17.**
 
 ### Install
 
@@ -162,7 +162,9 @@ This is a **debug build**, signed with your local debug key: use it on your own 
 
 1. Copy `ripsec.conf` to the phone (a cable or a similar direct route, not email).
 2. Open **Ripsec**, tap **Choose ripsec.conf…**, check the server and port, then **Add profile**.
-3. Tap the round button. The first time, Android asks you to allow the VPN, and may ask about notifications.
+3. Tap the round button. The first time, Android asks you to allow the VPN, and may ask about notifications. On
+   Android 17, if the server is on your local network, it also asks to let Ripsec find nearby devices: allow it, or
+   the server cannot be reached.
 4. Delete the copy of `ripsec.conf` from your downloads.
 
 The connection runs in the background with a notification, and survives leaving the app. Using another VPN app, or
@@ -180,5 +182,8 @@ turning this one off in Android's settings, disconnects it.
 
 On the emulator: adding a profile, the permission prompt, a full tunnel with traffic both ways, disconnecting,
 reconnecting, running in the background for a short while, and recovering from a server restart. Large pings that
-had to be fragmented lost about 2% of replies; full-size packets lost none. Not tested: a physical phone, network
-switching, long sleeps and battery use.
+had to be fragmented lost about 2% of replies; full-size packets lost none.
+
+On the phone, over Wi-Fi to a server on the same network: connecting, a full tunnel with IPv4 traffic and DNS,
+large packets with no loss, and IPv6 blocked. Not tested: mobile data, switching networks, long sleeps and battery
+use.

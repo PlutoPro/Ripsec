@@ -42,6 +42,12 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            // EPERM. On Android this is the system refusing the app, not the network failing.
+            Error::Io(e) if cfg!(target_os = "android") && e.raw_os_error() == Some(1) => write!(
+                f,
+                "Android blocked the connection. For a server on your local network, allow nearby \
+                 devices in Ripsec's app settings; also check that no other VPN blocks other traffic"
+            ),
             Error::Io(e) => write!(f, "network error: {e}"),
             Error::NoResponse => write!(f, "no response from the server"),
             Error::Cancelled => write!(f, "cancelled"),

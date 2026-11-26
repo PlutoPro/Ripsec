@@ -5,6 +5,7 @@ use crate::{Preview, import_options, preview};
 use ripsec_client::controller::Controller;
 use ripsec_client::ipc::Status;
 use ripsec_client::store::Store;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_ripsec_vpn::Vpn;
@@ -37,8 +38,20 @@ fn status(app: AppHandle) -> Result<Status, String> {
 #[tauri::command(async)]
 fn connect(app: AppHandle) -> Result<Status, String> {
     let directory = directory(&app)?;
-    app.state::<Vpn<tauri::Wry>>().start(directory)?;
-    Ok(controller(directory).status())
+    let controller = controller(directory);
+    let profile = controller.status().profile.ok_or("add a profile first")?;
+    app.state::<Vpn<tauri::Wry>>().start(directory, is_local(&profile.server, profile.port))?;
+    Ok(controller.status())
+}
+
+/// Whether reaching this server needs Android's local network permission.
+fn is_local(server: &str, port: u16) -> bool {
+    (server, port).to_socket_addrs().is_ok_and(|mut addresses| {
+        addresses.any(|a| match a.ip() {
+            IpAddr::V4(ip) => ip.is_private() || ip.is_link_local(),
+            IpAddr::V6(_) => false,
+        })
+    })
 }
 
 #[tauri::command(async)]

@@ -11,6 +11,8 @@ import androidx.activity.result.ActivityResult
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
+import app.tauri.annotation.Permission
+import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
@@ -20,11 +22,16 @@ import java.io.ByteArrayOutputStream
 @InvokeArg
 class StartArguments {
     lateinit var directory: String
+    /** Whether the server is on the local network. */
+    var local: Boolean = false
 }
 
 private const val MAX_PROFILE = 64 * 1024
+// By name, so that building does not depend on the newest SDK's constants.
+private const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
+private const val ANDROID_17 = 37
 
-@TauriPlugin
+@TauriPlugin(permissions = [Permission(strings = [LOCAL_NETWORK], alias = "localNetwork")])
 class VpnPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun directory(invoke: Invoke) {
@@ -33,6 +40,21 @@ class VpnPlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun start(invoke: Invoke) {
+        // Android 17 blocks apps from local addresses until the user allows it.
+        val needed = Build.VERSION.SDK_INT >= ANDROID_17 &&
+            invoke.parseArgs(StartArguments::class.java).local &&
+            activity.checkSelfPermission(LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED
+        if (needed) requestPermissionForAlias("localNetwork", invoke, "localNetworkAnswered")
+        else askToStart(invoke)
+    }
+
+    @PermissionCallback
+    fun localNetworkAnswered(invoke: Invoke) {
+        if (activity.checkSelfPermission(LOCAL_NETWORK) == PackageManager.PERMISSION_GRANTED) askToStart(invoke)
+        else invoke.reject("the server is on your local network: allow Ripsec to find nearby devices to reach it")
+    }
+
+    private fun askToStart(invoke: Invoke) {
         // Without it the connection still works, but its notification is hidden.
         if (Build.VERSION.SDK_INT >= 33 &&
             activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
